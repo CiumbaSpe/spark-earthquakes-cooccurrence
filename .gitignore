@@ -1,0 +1,12 @@
+Datasets
+project/target/
+project/project
+target/
+info.txt
+prg_desc.pdf
+.metals/
+.bsp/
+.idea/
+.vscode/
+.DS_Store
+spark-warehouse/
