@@ -2,6 +2,8 @@ import org.apache.spark.sql.{Row, SparkSession}
 import scala.util.Try
 import scala.math.BigDecimal.RoundingMode
 import scala.collection.mutable
+import org.apache.spark.storage.StorageLevel
+
 
 object Main {
 
@@ -34,15 +36,29 @@ object Main {
   def main(args: Array[String]): Unit = {
     val spark = SparkSession.builder()
       .appName("Earthquake Application")
+      .config("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
+      // .config("spark.executor.memory", "6g")
+      // .config("spark.driver.memory",   "4g")
+      // .config("spark.executor.cores",  "4")
       .getOrCreate()
     
     spark.sparkContext.setLogLevel("WARN")
 
     val inputPath = args(0)
+    val outputPath = args(2)
+
+    val numWorkers = args(1).toInt 
+    val coresPerWorker = 4 
+    val numPartitions = numWorkers * coresPerWorker * 3 // k=3 
+
+    // --- START TIME ---
+    val startTime = System.nanoTime()
 
     val raw = spark.read.option("header", value = true).csv(inputPath).rdd
+
+    val partitioner = new org.apache.spark.HashPartitioner(numPartitions)
     
-    val events = raw.map(rowToEvent).distinct().cache()    
+    val events = raw.map(rowToEvent).distinct().partitionBy(partitioner).persist(StorageLevel.MEMORY_AND_DISK)    
     // println(s"Distinct (day,cell) events = ${events.count()}")
     // events.take(5).foreach(println)
 
@@ -53,7 +69,7 @@ object Main {
         (a, b) => { if (a.size < b.size) { b ++= a; b } else { a ++= b; a } }
       )
       .mapValues(set => set.toArray.sorted)
-      .cache()
+      .persist(StorageLevel.MEMORY_AND_DISK)
 
     // Conta co-occorrenze: Pair -> numero di date in cui compaiono entrambi
     val pairCounts = dayToCells
@@ -92,10 +108,20 @@ object Main {
       .collect()
       .sorted
 
-    // Output nel formato richiesto
-    println(formatPair(bestPair))
-    dates.foreach(println)
+    // --- END TIME ---
+    val endTime = System.nanoTime()
+    val durationSeconds = (endTime - startTime) / 1e9d
 
+    val resultLines: Seq[String] =
+    Seq(formatPair(bestPair)) ++
+    dates ++
+    Seq(f"\nTEMPO DI ESECUZIONE: $durationSeconds%.3f secondi")
+
+
+    spark.sparkContext
+    .parallelize(resultLines)
+    .repartition(1)
+    .saveAsTextFile(outputPath)
 
     spark.stop()
   }

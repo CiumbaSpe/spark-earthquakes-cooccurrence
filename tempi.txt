@@ -1,0 +1,5 @@
+T1 = 1651.295 secondi
+T2 = 433.179 secondi
+T3 = 273.457 secondi
+T4 = 230.331 secondi
+
