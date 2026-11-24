@@ -1,66 +1,48 @@
 # Earthquake Co-occurrence Analysis
 
-Scala/Spark application that identifies the pair of geographic cells with the highest number of earthquake co-occurrences and returns the corresponding dates in chronological order.
+Scala/Spark application that identifies the pair of geographic cells
+with the highest number of earthquake co-occurrences and returns
+the corresponding dates in chronological order.
 
 ## Requirements
 
-- Java JDK 17
+- Java JDK
 - SBT 1.11.6
-- Scala 2.12.18 / Spark 3.5.3
+- Spark 3.5.3 / Scala 2.12.18
 - Google Cloud SDK
 
-## Build
+## Setup
+
+Place the following datasets in the `Datasets/` directory
+(not included in the repository):
+
+- dataset-earthquakes-full.csv
+- dataset-earthquakes-trimmed.csv
+
+Configure PROJECT, REGION and BUCKET where applicable in the scripts
+according to Google Cloud environment.
+
+## Local execution
 
 ```bash
-sbt clean assembly
+bash scripts/run_local.sh
 ```
 
-## Run on Google Cloud Dataproc
+## Execution on Google Cloud Dataproc
 
-With an existing GCP project and Cloud Storage bucket, set:
+Create the bucket and upload the dataset and JAR:
 
 ```bash
-REGION=europe-west8
-BUCKET=your-bucket-name
-CLUSTER=earthquake-cluster
-WORKERS=3
+bash scripts/setup_bucket.sh
 ```
 
-Upload the JAR and the full dataset:
+Create a cluster, submit the job and delete the cluster after execution:
 
 ```bash
-gcloud storage cp target/scala-2.12/earthquake-assembly-1.0.jar gs://$BUCKET/
-gcloud storage cp Datasets/dataset-earthquakes-full.csv gs://$BUCKET/
+bash scripts/create_cluster.sh 2
+bash scripts/submit_job.sh earthquake-cluster-2w 2
+bash scripts/delete_cluster.sh earthquake-cluster-2w
 ```
 
-Create the cluster:
-
-```bash
-gcloud dataproc clusters create $CLUSTER \
-  --region=$REGION \
-  --num-workers=$WORKERS \
-  --master-machine-type=n2-standard-4 \
-  --worker-machine-type=n2-standard-4 \
-  --master-boot-disk-size=240 \
-  --worker-boot-disk-size=240
-```
-
-Submit the job:
-
-```bash
-gcloud dataproc jobs submit spark \
-  --cluster=$CLUSTER \
-  --region=$REGION \
-  --jar=gs://$BUCKET/earthquake-assembly-1.0.jar \
-  -- gs://$BUCKET/dataset-earthquakes-full.csv $WORKERS gs://$BUCKET/output
-```
-
-Arguments: input dataset, number of workers, output directory.
-
-The output contains the selected pair, co-occurrence dates and execution time.
-
-Delete the cluster after execution:
-
-```bash
-gcloud dataproc clusters delete $CLUSTER --region=$REGION
-```
+The same procedure can be used with 3 or 4 workers.
+The configuration with 1 worker uses a single-node cluster.
